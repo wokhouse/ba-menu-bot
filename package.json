@@ -1,0 +1,19 @@
+{
+  "name": "ba-menu-bot",
+  "version": "1.0.0",
+  "description": "reed college dining hall menu on twitter",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/overwatchcorp/ba-menu-bot.git"
+  },
+  "author": "Jade Fung <jade@fungj.net>",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/overwatchcorp/ba-menu-bot/issues"
+  },
+  "homepage": "https://github.com/overwatchcorp/ba-menu-bot#readme"
+}
