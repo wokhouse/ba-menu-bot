@@ -31,7 +31,7 @@ const main = async () => {
   });
   // check to see if we are 1 hour away from a meal
   const closeToMeal = parsedParts.map((p) => {
-    const now = moment('11:00', 'HH:mm');
+    const now = moment();
     const { start } = p;
     // past 1 hour before meal starts
     const withinAnHour = start.subtract(1, 'hour').isBefore(now);
