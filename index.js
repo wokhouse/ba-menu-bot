@@ -91,9 +91,9 @@ const getMealItems = (nextNearMeal, data) => {
         // convert numbers to labels
         const notices = noticeNumbers.map((n) => {
           switch (n) {
-            case ('1'): { return 'vegetarian'; }
+            case ('1'): { return 'veg'; }
             case ('4'): { return 'vegan'; }
-            case ('9'): { return 'gluten-free'; }
+            case ('9'): { return 'gf'; }
             default: { return null; }
           }
         });
@@ -110,7 +110,12 @@ const getMealItems = (nextNearMeal, data) => {
   return nextMealWithItems;
 };
 
+// delay function to add delay between each tweet to allow for previous tweet to propagate
+// through twitter databases
+const delay = (time) => new Promise((res) => setTimeout(() => res(), time));
+
 const makeTweets = async (index, tweetTexts, lastTweetID) => {
+  console.log({ index, lastTweetID});
   let err = null;
   let msg = {};
   // first tweet is not in reply to anything so we cant provide an in_reply_to_status_id value
@@ -121,15 +126,36 @@ const makeTweets = async (index, tweetTexts, lastTweetID) => {
     [err, msg] = await to(twitter.post(
       'statuses/update',
       {
-        status: `@reedcommonsmenu ${tweetTexts[index]}`,
+        status: `${tweetTexts[index]}`,
+        username: '@reedcommonsmenu',
         in_reply_to_status_id: lastTweetID,
       },
     ));
   }
   if (err) console.error('twitter error:', err);
-  else console.log({ text: msg.text, id: msg.id, replyTo: msg.in_reply_to_status_id });
-  if (tweetTexts.length - 1 > index) return makeTweets(index + 1, tweetTexts, 'peepee');
+  else console.log({ tweeted: msg.text, id: msg.id_str });
+  // await delay(1000);
+  if (tweetTexts.length - 1 > index) return makeTweets(index + 1, tweetTexts, msg.id_str);
   return true;
+};
+
+const stationEmoji = {
+  Toast: '🍞',
+  'Breakfast Grill': '🍳',
+  'Salad Bar Breakfast': '🥗',
+  'Breakfast Cocina': '🌯',
+  'Deli Breakfast': '🥯',
+  'Daily Planet Breakfast': '🥓',
+  'Daily Planet Lunch': '🍲',
+  Taqueria: '🌮',
+  'Classics Delicatessen': '🥪',
+  Ovens: '🍕',
+  Grill: '🍔',
+  'Lighten up at the Grill': '🥬',
+  DIY: '🍝',
+  Beverage: '🧃',
+  Simmered: '🍜',
+  Cereal: '🥣',
 };
 
 // wrap in function so we can use async/await
@@ -162,11 +188,19 @@ const main = async () => {
   const stationStrings = nextMeal.map((s) => {
     const stationName = s.label;
     const items = s.items.map(({ label, notices }) => `${label} ${notices.length ? `(${notices.join(' ')})` : ''}`);
-    const stationString = `== ${stationName} ==\n${items.join('\n')}`;
+    // add emojis to the station names becase we have fun here
+    const stationString = `${(stationName in stationEmoji ? `${stationEmoji[stationName]} ` : '')}${stationName}\n${items.join('\n')}`;
     return stationString;
   });
   // make array of tweet texts
   const tweets = [`Reed College Commons ${nextMealName} ${moment().format('MMM Do YYYY')}`].concat(stationStrings);
+  // if it's hot turkey sandwich day, make a BIG DEAL ABOUT IT!!!
+  const isHotTurkeySandwichDay = stationStrings.some(
+    (text) => /Hot Turkey or Vegan Field Roast Sandwich/.test(text),
+  );
+  if (isHotTurkeySandwichDay) {
+    tweets[0] = `Reed College Commons ${nextMealName} ${moment().format('MMM Do YYYY')}. By the way it is HOT TURKEY SANDWICH DAY 🔥🦃🥪`;
+  }
 
   // check lastmealposted.json to make sure we haven't posted this meal
   const lastMealRaw = await readFile(lastMealFilename);
@@ -176,9 +210,8 @@ const main = async () => {
     // recursively tweet since we want each tweet to be a reply
     // to the previous one so that each meal will be one thread
     await makeTweets(0, tweets);
-    await writeFile(
-      lastMealFilename, JSON.stringify({ lastMealPosted: nextMealName }),
-    );
+    await writeFile(lastMealFilename,
+      JSON.stringify({ lastMealPosted: nextMealName }));
   } else { console.log(`already tweeted ${nextMealName}`); }
   return true;
 };
