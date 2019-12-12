@@ -45,7 +45,7 @@ const checkNearMeal = (cafe) => {
   });
   // check to see if we are 1 hour away from a meal
   const closeToMeal = parsedParts.map((p) => {
-    const now = moment('16:30', 'HH:mm');
+    const now = moment();
     const { start } = p;
     // past 1 hour before meal starts
     const withinAnHour = start.subtract(1, 'hour').isBefore(now);
@@ -126,7 +126,7 @@ const makeTweets = async (index, tweetTexts, lastTweetID) => {
       },
     ));
   }
-  if (err) throw (err);
+  if (err) console.error('twitter error:', err);
   else console.log({ text: msg.text, id: msg.id, replyTo: msg.in_reply_to_status_id });
   if (tweetTexts.length - 1 > index) return makeTweets(index + 1, tweetTexts, 'peepee');
   return true;
@@ -148,6 +148,10 @@ const main = async () => {
   const cafe = data.days[0].cafes[cafeID];
   // check to see if we are near a meal (<1hr)
   const nextNearMeal = checkNearMeal(cafe);
+  if (nextNearMeal === false) {
+    console.log('no new upcoming meals');
+    return true;
+  }
   // go through each station and get tier 1 items
   const nextMealWithItems = getMealItems(nextNearMeal, data);
   // filter out stations that aren't serving any items (ie stations from other meals)
@@ -179,4 +183,7 @@ const main = async () => {
   return true;
 };
 
+// run once a minute
+const interval = 60000;
 main();
+setInterval(main, interval);
