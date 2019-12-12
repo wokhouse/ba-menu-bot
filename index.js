@@ -1,12 +1,28 @@
+require('dotenv').config();
 const fetch = require('node-fetch');
 const to = require('await-to-js').default;
 const moment = require('moment');
+const Twitter = require('twitter');
+const fs = require('fs');
+const util = require('util');
 
 // commons is cafe ID 224
 // set up URL for getting today's menu
 const cafeID = 224;
 const url = new URL('https://legacy.cafebonappetit.com/api/2/menus');
 url.search = `cafe=${cafeID}`;
+
+const twitter = new Twitter({
+  consumer_key: process.env.TWITTER_CONSUMER_KEY,
+  consumer_secret: process.env.TWITTER_CONSUMER_SECRET,
+  access_token_key: process.env.TWITTER_ACCESS_TOKEN_KEY,
+  access_token_secret: process.env.TWITTER_ACCESS_TOKEN_SECRET
+});
+
+// use fs to keep track of what meals we have tweeted already
+const readFile = util.promisify(fs.readFile);
+const writeFile = util.promisify(fs.writeFile);
+const lastMealFilename = './lastmealposted.json';
 
 const fetchMenuData = async () => {
   // fetch menu data
@@ -18,11 +34,9 @@ const fetchMenuData = async () => {
   return data;
 };
 
-// wrap in function so we can use async/await
-const main = async () => {
-  const data = await fetchMenuData();
-  // menu is stored in parts of the day
-  const dayParts = data.days[0].cafes[cafeID].dayparts[0];
+// check to see if we are near a meal (<1hr)
+const checkNearMeal = (cafe) => {
+  const dayParts = cafe.dayparts[0];
   // parse start and end times
   const parsedParts = dayParts.map((p, i) => {
     const start = moment(p.starttime, 'HH:mm');
@@ -31,7 +45,7 @@ const main = async () => {
   });
   // check to see if we are 1 hour away from a meal
   const closeToMeal = parsedParts.map((p) => {
-    const now = moment();
+    const now = moment('16:30', 'HH:mm');
     const { start } = p;
     // past 1 hour before meal starts
     const withinAnHour = start.subtract(1, 'hour').isBefore(now);
@@ -45,7 +59,11 @@ const main = async () => {
   if (nextNearMealIndex === -1) return false;
   // index of which meal is in an hour w/in dayParts array
   const nextNearMeal = dayParts[nextNearMealIndex];
-  // go through each station and get tier 1 items
+  return nextNearMeal;
+};
+
+// go through each station and get tier 1 items
+const getMealItems = (nextNearMeal, data) => {
   const nextMealWithItems = nextNearMeal.stations.map((m) => {
     const { items, label: stationLabel } = m;
     // get item data using the keys included in the station items
@@ -89,6 +107,49 @@ const main = async () => {
     const stationWithItems = { label: stationLabel, items: itemData };
     return stationWithItems;
   });
+  return nextMealWithItems;
+};
+
+const makeTweets = async (index, tweetTexts, lastTweetID) => {
+  let err = null;
+  let msg = {};
+  // first tweet is not in reply to anything so we cant provide an in_reply_to_status_id value
+  if (index === 0) {
+    [err, msg] = await to(twitter.post('statuses/update', { status: tweetTexts[index] }));
+  } else {
+    // the rest of the tweets are in reply to each other so that the meal will be in a thread
+    [err, msg] = await to(twitter.post(
+      'statuses/update',
+      {
+        status: `@reedcommonsmenu ${tweetTexts[index]}`,
+        in_reply_to_status_id: lastTweetID,
+      },
+    ));
+  }
+  if (err) throw (err);
+  else console.log({ text: msg.text, id: msg.id, replyTo: msg.in_reply_to_status_id });
+  if (tweetTexts.length - 1 > index) return makeTweets(index + 1, tweetTexts, 'peepee');
+  return true;
+};
+
+// wrap in function so we can use async/await
+const main = async () => {
+  // check to see if lastmealposted.json exists, create if it does not
+  const [lastMealPostedDoesNotExist] = await to(readFile(lastMealFilename));
+  if (lastMealPostedDoesNotExist) {
+    await writeFile(
+      lastMealFilename, JSON.stringify({ lastMealPosted: null }),
+    );
+  }
+
+  // fetch menu data from BA API
+  const data = await fetchMenuData();
+  // menu is stored in parts of the day
+  const cafe = data.days[0].cafes[cafeID];
+  // check to see if we are near a meal (<1hr)
+  const nextNearMeal = checkNearMeal(cafe);
+  // go through each station and get tier 1 items
+  const nextMealWithItems = getMealItems(nextNearMeal, data);
   // filter out stations that aren't serving any items (ie stations from other meals)
   const nextMeal = nextMealWithItems.filter((s) => s.items.length > 0);
   // get the name of the meal
@@ -102,7 +163,19 @@ const main = async () => {
   });
   // make array of tweet texts
   const tweets = [`Reed College Commons ${nextMealName} ${moment().format('MMM Do YYYY')}`].concat(stationStrings);
-  tweets.map((t) => console.log(t, '\n'));
+
+  // check lastmealposted.json to make sure we haven't posted this meal
+  const lastMealRaw = await readFile(lastMealFilename);
+  const { lastMealPosted } = JSON.parse(lastMealRaw);
+  if (lastMealPosted !== nextMealName) {
+    console.log(`now tweeting ${nextMealName} menu`);
+    // recursively tweet since we want each tweet to be a reply
+    // to the previous one so that each meal will be one thread
+    await makeTweets(0, tweets);
+    await writeFile(
+      lastMealFilename, JSON.stringify({ lastMealPosted: nextMealName }),
+    );
+  } else { console.log(`already tweeted ${nextMealName}`); }
   return true;
 };
 
