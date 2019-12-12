@@ -68,7 +68,7 @@ const main = async () => {
       }) => {
         // parse out veg, vegan, gluten free
         const noticeNumbers = Object.keys(cor_icon).filter(
-          (i) => Array.from([1, 4, 9]).indexOf(parseInt(i, 10)) > -1,
+          (i) => [1, 4, 9].indexOf(parseInt(i, 10)) > -1,
         );
         // convert numbers to labels
         const notices = noticeNumbers.map((n) => {
