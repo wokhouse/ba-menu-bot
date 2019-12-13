@@ -110,10 +110,6 @@ const getMealItems = (nextNearMeal, data) => {
   return nextMealWithItems;
 };
 
-// delay function to add delay between each tweet to allow for previous tweet to propagate
-// through twitter databases
-const delay = (time) => new Promise((res) => setTimeout(() => res(), time));
-
 const makeTweets = async (index, tweetTexts, lastTweetID) => {
   console.log({ index, lastTweetID});
   let err = null;
@@ -147,7 +143,11 @@ const stationEmoji = {
   'Deli Breakfast': '🥯',
   'Daily Planet Breakfast': '🥓',
   'Daily Planet Lunch': '🍲',
+  'Daily Planet Dinner': '🍲',
+  Carve: '🍗',
   Taqueria: '🌮',
+  'Pasta bowl': '🍝',
+  'Rice bowl': '🍚',
   'Classics Delicatessen': '🥪',
   Ovens: '🍕',
   Grill: '🍔',
