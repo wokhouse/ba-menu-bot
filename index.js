@@ -47,10 +47,10 @@ const checkNearMeal = (cafe) => {
   const closeToMeal = parsedParts.map((p) => {
     const now = moment();
     const { start } = p;
-    // past 1 hour before meal starts
-    const withinAnHour = start.subtract(1, 'hour').isBefore(now);
+    // post 30 minutes before meal starts
+    const withinAnHour = start.subtract(30, 'minutes').isBefore(now);
     // meal hasnt started yet
-    const hasntStartedYet = start.add(1, 'hour').isAfter(now);
+    const hasntStartedYet = start.add(30, 'minutes').isAfter(now);
     if (withinAnHour && hasntStartedYet) return true;
     return false;
   });
